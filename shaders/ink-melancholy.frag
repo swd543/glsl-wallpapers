@@ -153,8 +153,8 @@ void main()
 
     // Near-black plum water: deliberately low-key, with just enough wine in
     // the lifted areas to keep the marbling visible.
-    vec3 color = mix(vec3(0.007, 0.006, 0.015),
-                     vec3(0.042, 0.013, 0.038), clamp(f * 1.30, 0.0, 1.0));
+    vec3 color = mix(vec3(0.005, 0.004, 0.011),
+                     vec3(0.034, 0.010, 0.030), clamp(f * 1.30, 0.0, 1.0));
 
     // Dark rose ink, sparse enough to leave broad melancholy shadows.
     float rose = smoothstep(0.39, 0.76, f) * (0.28 + 0.72 * detm);
@@ -202,7 +202,7 @@ void main()
     color += vec3(0.62, 0.22, 0.36) * striation * 0.05;
 
     float vignette = 1.0 - smoothstep(0.42, 1.35, length(uv * 2.0 - 1.0));
-    color *= mix(0.44, 1.0, vignette) * 1.02;
+    color *= mix(0.38, 1.0, vignette) * 0.98;
     color = max(color, vec3(0.0));
 
     fragColor = vec4(color, 1.0) * ubuf.qt_Opacity;
