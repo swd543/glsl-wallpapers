@@ -198,3 +198,7 @@ python3 scripts/render.py shaders/ink.frag out.png 12.0 1280 720
 * All preview tooling (web server, GIFs, tests) uses the iGPU with a
   Mesa/EGL surfaceless context; pick whichever GPU you want via the normal
   environment variables if your machine has several.
+
+## License
+
+MIT — see [LICENSE](LICENSE).
