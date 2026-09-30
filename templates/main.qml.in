@@ -1,0 +1,41 @@
+import QtQuick
+import org.kde.plasma.plasmoid
+
+WallpaperItem {
+    id: root
+
+    // Follow Qt Quick's render loop instead of a 50 ms GUI timer. This keeps
+    // uniform updates synchronized with the compositor and removes the old
+    // 20 FPS ceiling and timer jitter.
+    FrameAnimation {
+        id: frameClock
+        running: root.visible
+    }
+
+    ShaderEffect {
+        id: shader
+
+        anchors.fill: parent
+        blending: false
+
+        property real animationRate: 2.0
+        property real renderScale: @RENDER_SCALE@
+        property real time: frameClock.elapsedTime * animationRate
+        property vector2d resolution: Qt.vector2d(
+            Math.max(width * renderScale, 1),
+            Math.max(height * renderScale, 1))
+
+        fragmentShader: Qt.resolvedUrl("@SHADER@")
+
+        // The domain-warped ink shaders use a reduced offscreen target and a
+        // smooth upscale. Other variants substitute 1.0 and stay direct/full
+        // resolution, so they do not pay for an unnecessary layer pass.
+        layer.enabled: renderScale < 0.999
+        layer.textureSize: Qt.size(
+            Math.max(1, Math.round(width * renderScale)),
+            Math.max(1, Math.round(height * renderScale)))
+        layer.live: true
+        layer.smooth: true
+        layer.mipmap: false
+    }
+}

@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>glsl wallpapers — preview</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: #0b0d10; color: #d7dbe2;
+    font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  header {
+    display: flex; align-items: baseline; gap: .6rem;
+    padding: 10px 14px 6px;
+  }
+  header h1 { font-size: 1rem; margin: 0; font-weight: 600; }
+  header .sub { color: #7a828e; font-size: .78rem; }
+  .wrap { display: block; }
+  #stage {
+    width: min(100%, 1000px); aspect-ratio: 16 / 9;
+    margin: 8px auto; position: relative;
+    background: #000; border-radius: 10px; overflow: hidden;
+  }
+  #frame {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    display: block; object-fit: contain;
+  }
+  .controls {
+    display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+    padding: 0 14px 10px; max-width: 1000px; margin: 0 auto;
+  }
+  select, button {
+    background: #171b21; color: #d7dbe2; border: 1px solid #2a3039;
+    border-radius: 8px; padding: 7px 10px; font-size: .88rem;
+  }
+  button:active { background: #232a33; }
+  #stats {
+    margin: 0 auto; max-width: 1000px; padding: 0 14px 18px;
+    font-size: .82rem; color: #9aa3af;
+  }
+  #stats .grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(150px,1fr));
+    gap: 6px 14px; background: #10141a; border: 1px solid #222833;
+    border-radius: 10px; padding: 10px 12px;
+  }
+  #stats b { color: #d7dbe2; font-weight: 600; }
+  .bar { height: 6px; border-radius: 3px; background: #232a33; overflow: hidden; }
+  .bar i { display: block; height: 100%; background: #37b36b; width: 0%; }
+  .row { display: flex; flex-direction: column; gap: 3px; }
+  .row .lbl { display: flex; justify-content: space-between; }
+  #err {
+    display: none; margin: 10px 14px; padding: 8px 12px; max-width: 1000px;
+    background: #3a1620; border: 1px solid #7c2d3d; border-radius: 8px;
+    color: #ffb3c0; margin-left: auto; margin-right: auto;
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>glsl lock-screen wallpapers</h1>
+  <span class="sub" id="gpu">…</span>
+</header>
+<div id="err"></div>
+<div id="stage"><img id="frame" alt="" draggable="false"></div>
+<div class="controls">
+  <select id="variant"></select>
+  <select id="res"></select>
+  <button id="toggle">⏸ pause</button>
+  <button id="shuffle">🔀</button>
+</div>
+<div id="stats"><div class="grid" id="grid"></div></div>
+<script>
+const $ = (id) => document.getElementById(id);
+let playing = true;
+let pollMs = 130;
+let timer = null;
+let inFlight = false;
+
+const grid = $('grid');
+function cell(label, html) {
+  return `<div class="row"><div class="lbl"><span>${label}</span><span>${html}</span></div></div>`;
+}
+
+async function loadStats() {
+  try {
+    const s = await (await fetch('/stats')).json();
+    const g = s.gpu;
+    const pct = g.busy_percent;
+    const bar = pct == null ? '—'
+      : `<div class="bar"><i style="width:${pct}%;background:${pct>70?'#e0863c':pct>40?'#d8b23c':'#37b36b'}"></i></div>`;
+    const gb = (b) => b == null ? '—' : (b/2**30).toFixed(1)+' GiB';
+    const mb = (b) => b == null ? '—' : Math.round(b/2**20)+' MiB';
+    const vramPct = (g.vram_used_bytes && g.vram_total_bytes)
+      ? Math.round(100*g.vram_used_bytes/g.vram_total_bytes) : null;
+    const gibFromKib = (kb) => kb == null ? '—' : (kb/1024/1024).toFixed(1)+' GiB';
+    grid.innerHTML =
+      `<div class="row"><div class="lbl"><span>iGPU busy</span><span><b>${pct == null ? '—' : pct+'%'}</b></span></div>${bar}</div>`+
+      `<div class="row"><div class="lbl"><span>VRAM (iGPU)</span><span><b>${mb(g.vram_used_bytes)} / ${gb(g.vram_total_bytes)}</b>${vramPct!=null?' ('+vramPct+'%)':''}</span></div></div>`+
+      `<div class="row"><div class="lbl"><span>render fps</span><span><b>${s.fps}</b></span></div></div>`+
+      `<div class="row"><div class="lbl"><span>frames rendered</span><span><b>${s.frames}</b></span></div></div>`+
+      `<div class="row"><div class="lbl"><span>server RSS</span><span><b>${s.rss_kb==null?'—':mb(s.rss_kb*1024)}</b></span></div></div>`+
+      `<div class="row"><div class="lbl"><span>system RAM</span><span><b>${gibFromKib(s.mem_available_kb)} / ${gibFromKib(s.mem_total_kb)} free</b></span></div></div>`;
+    $('gpu').textContent = 'AMD iGPU (Granite Ridge) · card1';
+  } catch (e) { /* stats unavailable; ignore */ }
+}
+
+function frameUrl() {
+  return '/frame?variant=' + encodeURIComponent($('variant').value)
+       + '&res=' + $('res').value + '&t=' + Date.now();
+}
+
+function scheduleNext() {
+  clearTimeout(timer);
+  if (playing) timer = setTimeout(fetchFrame, pollMs);
+}
+
+function fetchFrame() {
+  if (!playing || inFlight) return;
+  inFlight = true;
+  const img = $('frame');
+  img.onload = img.onerror = () => {
+    inFlight = false;
+    scheduleNext(); // pace: exactly one request at a time
+  };
+  img.src = frameUrl();
+}
+
+async function init() {
+  try {
+    const s = await (await fetch('/stats')).json();
+    const v = $('variant'), r = $('res');
+    s.variants.forEach((name) => {
+      const o = document.createElement('option');
+      o.value = name; o.textContent = name;
+      if (name === s.default_variant) o.selected = true;
+      v.appendChild(o);
+    });
+    s.resolutions.forEach((name) => {
+      const o = document.createElement('option');
+      o.value = name; o.textContent = name;
+      if (name === '1280x720') o.selected = true;
+      r.appendChild(o);
+    });
+  } catch (e) {
+    $('err').style.display = 'block';
+    $('err').textContent = 'cannot load stats: ' + e;
+    return;
+  }
+  $('variant').onchange = () => {
+    clearTimeout(timer);
+    if (playing && !inFlight) fetchFrame();
+  };
+  $('res').onchange = () => {
+    clearTimeout(timer);
+    if (playing && !inFlight) fetchFrame();
+  };
+  $('toggle').onclick = () => {
+    playing = !playing;
+    $('toggle').textContent = playing ? '⏸ pause' : '▶ play';
+    if (playing) scheduleNext();
+    else clearTimeout(timer);
+  };
+  $('shuffle').onclick = () => {
+    const opts = [...$('variant').options];
+    $('variant').value = opts[Math.floor(Math.random()*opts.length)].value;
+    if (playing) fetchFrame();
+  };
+  setInterval(loadStats, 2000);
+  loadStats();
+  scheduleNext();
+}
+init();
+</script>
+</body>
+</html>

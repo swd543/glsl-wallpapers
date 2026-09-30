@@ -1,0 +1,16 @@
+{
+    "KPackageStructure": "Plasma/Wallpaper",
+    "KPlugin": {
+        "Authors": [
+            {
+                "Name": "Local"
+            }
+        ],
+        "Description": "Continuously rendered procedural GLSL wallpaper variant for Plasma login and lock screens",
+        "EnabledByDefault": false,
+        "Icon": "preferences-desktop-wallpaper",
+        "Id": "@ID@",
+        "License": "MIT",
+        "Name": "@NAME@"
+    }
+}
