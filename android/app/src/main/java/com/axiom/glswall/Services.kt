@@ -58,10 +58,11 @@ abstract class ShaderWallpaperService : WallpaperService() {
      *  - OFF    → render thread idles, zero GL work (not visible, or screen off).
      *  - STATIC → exactly one frame, then idle. Entered for AOD (display DOZE),
      *             power-save mode, thermal throttling, or the user's static mode.
-     *             Note: targeting Android 16, the framework no longer holds the
-     *             per-frame DRAW_WAKE_LOCK during DOZE (compat change
-     *             DISABLE_DRAW_WAKE_LOCK_WALLPAPER), so AOD animation is a
-     *             platform no-go anyway — one good frame is the correct design.
+     *             AOD animation is deliberately out of scope: on Android 16+
+     *             the framework no longer holds the per-frame DRAW_WAKE_LOCK
+     *             during DOZE (compat change DISABLE_DRAW_WAKE_LOCK_WALLPAPER),
+     *             and even where it does, animating an always-on display is a
+     *             battery no-go — one good frame is the correct design.
      *  - ANIM   → vsync'd, capped at [WallRegistry.FPS_CAP] fps by frame pacing.
      *
      * No wakelocks are ever held (Google Play's 2026 wake-lock quality

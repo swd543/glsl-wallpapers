@@ -211,12 +211,31 @@ optimization exemption):
   visible or the screen is off.
 * **STATIC** — exactly one frame, then idle, for Always-On Display (display
   DOZE), power-save mode, thermal throttling, or the user's static choice.
-  Targeting Android 16, the platform no longer allows AOD animation anyway
-  (the `DRAW_WAKE_LOCK` compat change), so one good frame is the right design.
+  AOD animation is deliberately out of scope: on Android 16+ the framework
+  no longer holds the per-frame `DRAW_WAKE_LOCK` during DOZE (compat change
+  `DISABLE_DRAW_WAKE_LOCK_WALLPAPER`), and animating an always-on display is a
+  battery no-go regardless — one good frame is the right design.
 * **ANIM** — vsync'd and capped at 30 fps (ambient motion, 30 fps reads
   identically at half/quarter the GPU cost of 60/120 Hz).
 
-Build (needs JDK 17 + an Android SDK with `platforms;android-36`):
+The mode choice (live/static) lives in SharedPreferences per variant; the
+render thread polls it at ~1 Hz. (No `WallpaperManager` command channel:
+its `ComponentName`-targeted `sendWallpaperCommand` overload no longer
+exists on recent platform surfaces.)
+
+**Why the app targets API 35, not 36.** Verified against the official
+`platform-36_r02.zip` stubs: the API-36 platform jar breaks the classic
+OpenGL interop surface — `EGL14.eglInitialize/eglChooseConfig/...` now take
+array+offset pairs, `eglCreateWindowSurface` takes `java.lang.Object`,
+`SurfaceHolder` lost `getSurfaceWidth()/getSurfaceHeight()`, and
+`WallpaperManager.sendWallpaperCommand` lost its `ComponentName` overload.
+Code compiled against the 36 signatures would crash on every sub-16
+device, so the MVP pins `compileSdk`/`targetSdk = 35` and uses only the
+classic API, which is stable from API 17 through 35. Revisiting a 36 target
+means porting the engine to the new signatures plus runtime API-level
+branching (reflection or dual code paths).
+
+Build (needs JDK 17 + an Android SDK with `platforms;android-35`):
 
 ```sh
 android/scripts/generate-assets.sh
@@ -224,7 +243,10 @@ android/scripts/generate-assets.sh
 ```
 
 GitHub Actions builds the debug APK on every relevant push (see
-`.github/workflows/android.yml`).
+`.github/workflows/android.yml`). Note: the CI asset pipeline transpiles
+whatever `shaders/*.frag` files are tracked, so a variant that is still
+untracked in git ships without its shader asset and renders black (logged)
+until it is committed.
 
 ## Notes
 
