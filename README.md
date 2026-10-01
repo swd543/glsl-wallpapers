@@ -9,7 +9,8 @@ served by the web preview.
 ## Preview
 
 All GIFs: 480×270, 84 frames (QSB variants step 0.3 s of animation per
-frame; feedback variants run one generation per frame).
+frame; feedback variants advance their CA by the same generations per
+frame as the web preview — `life` time-lapses 3, `mnca` 1).
 
 ![ink](previews/gifs/ink.gif)
 **`ink`** — gold and pale-blue ink on deep green

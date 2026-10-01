@@ -64,9 +64,13 @@ def make_feedback_gif(name, out_path, ctx):
     prewarm = {"mnca": 100, "life": 60}.get(name, 0)
     for i in range(prewarm):
         st.step(W, H, reset=(i == 0))
+    # advance the same number of generations per frame as the web preview
+    # (per-variant default_gens: life time-lapses 3 per frame)
+    gens_per_frame = feedback.VARIANTS[name].get("default_gens", 1)
     frames = []
     for i in range(FRAMES):
-        rgba = st.step(W, H)
+        for j in range(gens_per_frame):
+            rgba = st.step(W, H)
         frames.append(Image.frombytes("RGBA", (W, H), rgba).convert("RGB"))
     save_gif(frames, out_path, name)
 
