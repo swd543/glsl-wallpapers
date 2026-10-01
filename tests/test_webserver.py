@@ -97,12 +97,16 @@ class TestWebServer(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(body.strip(), b"ok")
 
-    def test_stats_lists_ink_variants_only(self):
+    def test_stats_lists_committed_variants(self):
+        # The server must list exactly the variants the repo ships — the
+        # .frag files tracked in git (plus any feedback pairs, which are
+        # tracked under shaders/feedback/).
         status, body = self.get("/stats")
         self.assertEqual(status, 200)
         stats = json.loads(body)
-        self.assertEqual(sorted(stats["variants"]),
-                         ["ink", "ink-melancholy"])
+        expected = sorted(os.path.splitext(os.path.basename(p))[0]
+                          for p in _committed_shaders())
+        self.assertEqual(sorted(stats["variants"]), expected)
         self.assertEqual(stats["rate"], 2.0)
         self.assertIn(stats["default_variant"], stats["variants"])
 

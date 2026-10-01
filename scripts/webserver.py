@@ -31,6 +31,7 @@ from urllib.parse import urlparse, parse_qs
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import render  # noqa: E402  (render.py, same dir)
+import feedback  # noqa: E402  (feedback.py, same dir)
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SHADER_DIR = os.path.join(ROOT, "shaders")
@@ -47,6 +48,8 @@ def variant_list():
     for name in sorted(os.listdir(SHADER_DIR)):
         if name.endswith(".frag"):
             out.append(name[:-5])
+    # stateful (ping-pong) variants live in shaders/feedback/
+    out += feedback.discover(SHADER_DIR)
     return out
 
 
@@ -123,6 +126,7 @@ class Renderer(threading.Thread):
         super().__init__(daemon=True, name="gpu-render")
         self.q = queue.Queue()
         self._contexts = {}          # (w, h) -> render.RenderContext
+        self._fb = {}                # (name, w, h) -> feedback.FeedbackState
         self._start = time.time()
         self._frame_times = []
         self.frames = 0
@@ -177,9 +181,40 @@ class Renderer(threading.Thread):
                     reply.put(("ok", png))
                 except Exception as e:  # noqa: BLE001
                     reply.put(("err", str(e)))
+            elif kind == "feedback":
+                _, name, w, h, gens, uniforms, reset, seed, reply = job
+                try:
+                    ctx = self._ctx(w, h)
+                    key = (name, w, h)
+                    st = self._fb.get(key)
+                    if st is None or st.ctx is not ctx:
+                        st = feedback.FeedbackState(name, ctx, SHADER_DIR)
+                        self._fb[key] = st
+                    params = dict(feedback.VARIANTS[name]["defaults"])
+                    params.update(uniforms or {})
+                    png = None
+                    for i in range(gens):
+                        rgba = st.step(w, h, params,
+                                       reset=reset and i == 0,
+                                       seed=seed)
+                        png = self._rgba_png(rgba, w, h)
+                    self.frames += 1
+                    self._frame_times.append(time.time())
+                    reply.put(("ok", png))
+                except Exception as e:  # noqa: BLE001
+                    reply.put(("err", str(e)))
             else:
                 reply = job[1]
                 reply.put(("ok", None))
+
+    def _rgba_png(self, rgba, w, h):
+        """Encode an RGBA readback as PNG bytes."""
+        from io import BytesIO
+        from PIL import Image
+        img = Image.frombytes("RGBA", (w, h), rgba)
+        bio = BytesIO()
+        img.save(bio, format="PNG")
+        return bio.getvalue()
 
     def log(self, msg):
         print("[%s] %s" % (time.strftime("%H:%M:%S"), msg), flush=True)
@@ -199,10 +234,28 @@ class Renderer(threading.Thread):
             raise RuntimeError(payload)
         return payload
 
+    def request_frame_feedback(self, name, w, h, gens=1, uniforms=None,
+                               reset=False, seed=None, timeout=30.0):
+        if self.q.qsize() > 3:
+            raise RuntimeError("render queue busy (try again)")
+        reply = queue.Queue()
+        self.q.put(("feedback", name, w, h, gens, uniforms, reset, seed,
+                    reply))
+        try:
+            status, payload = reply.get(timeout=timeout)
+        except queue.Empty:
+            raise RuntimeError("render timeout")
+        if status != "ok":
+            raise RuntimeError(payload)
+        return payload
+def _qint(q, key):
+    """Optional int query parameter (None if absent or bad)."""
+    try:
+        return int(q.get(key, [None])[0])
+    except (TypeError, ValueError):
+        return None
 
-# --------------------------------------------------------------------------
-# HTTP
-# --------------------------------------------------------------------------
+
 class Handler(BaseHTTPRequestHandler):
     renderer = None
     server_start = None
@@ -239,7 +292,25 @@ class Handler(BaseHTTPRequestHandler):
                 if w > 2560 or h > 1440 or w < 160 or h < 90:
                     self._send(400, b"res out of range", "text/plain")
                     return
-                png = self.renderer.request_frame(variant, w, h)
+                if variant in feedback.discover(SHADER_DIR):
+                    try:
+                        gens = max(1, min(200, int(q.get("gens", ["1"])[0])))
+                    except ValueError:
+                        gens = 1
+                    uniforms = {}
+                    for k, v in q.items():
+                        if k in ("variant", "res", "t", "gens", "reset"):
+                            continue
+                        try:
+                            vals = [float(x) for x in v[0].split(",")]
+                        except ValueError:
+                            continue
+                        uniforms[k] = vals[0] if len(vals) == 1 else vals
+                    png = self.renderer.request_frame_feedback(
+                        variant, w, h, gens, uniforms, "reset" in q,
+                        _qint(q, "seed"))
+                else:
+                    png = self.renderer.request_frame(variant, w, h)
                 self._send(200, png, "image/png")
             elif parsed.path == "/stats":
                 self._send(200, json.dumps(stats_snapshot(self.renderer))

@@ -76,6 +76,13 @@ GL_RENDERER_ = 0x1F01
 GL_TEXTURE_2D = 0x0DE1
 GL_RGBA8 = 0x8058
 GL_FRAMEBUFFER = 0x8D40
+
+# Solid-color program used for the context warm-up draw (see _setup_fbo).
+_WARMUP_VS = (b"#version 310 es\nprecision highp float;\n"
+              b"void main(){vec2 p=vec2(float((gl_VertexID&1)<<2)-1.0,"
+              b"float(gl_VertexID&2)-1.0);gl_Position=vec4(p,0.0,1.0);}")
+_WARMUP_FS = b"#version 310 es\nprecision highp float;\nout vec4 o;\n"
+_WARMUP_FS += b"void main(){o=vec4(0.0);}"
 GL_READ_FRAMEBUFFER = 0x8CA8
 GL_COLOR_ATTACHMENT0 = 0x8CE0
 GL_FRAMEBUFFER_COMPLETE = 0x8CD5
@@ -290,6 +297,26 @@ class RenderContext:
         status = self._fn("glCheckFramebufferStatus")(GL_FRAMEBUFFER)
         if status != GL_FRAMEBUFFER_COMPLETE:
             raise RuntimeError("FBO incomplete 0x%x" % status)
+
+        # Mesa surfaceless quirk: the first draw on a fresh EGL context that
+        # samples a texture silently reads zeros (no GL error is set). One
+        # solid draw into the display FBO at context creation warms the
+        # pipeline so subsequent sampling reads real texture data.
+        vs = self._compile(_WARMUP_VS, "vertex")
+        fs = self._compile(_WARMUP_FS, "fragment")
+        prog = self._fn("glCreateProgram")()
+        self._fn("glAttachShader")(prog, vs)
+        self._fn("glAttachShader")(prog, fs)
+        self._fn("glLinkProgram")(prog)
+        self._fn("glUseProgram")(prog)
+        self._fn("glBindFramebuffer")(GL_FRAMEBUFFER, self._fbo)
+        self._fn("glClearColor")(0.0, 0.0, 0.0, 1.0)
+        self._fn("glViewport")(0, 0, width, height)
+        self._fn("glClear")(GL_COLOR_BUFFER_BIT)
+        self._fn("glDrawArrays")(GL_TRIANGLES, 0, 3)
+        self._fn("glDeleteProgram")(prog)
+        self._fn("glDeleteShader")(vs)
+        self._fn("glDeleteShader")(fs)
 
     # -- shaders ---------------------------------------------------------
     def _compile(self, src: bytes, kind: str) -> int:

@@ -3,14 +3,25 @@
 Animated, texture-free GLSL 440 wallpapers for KDE Plasma **lock and login
 screens**, rendered entirely on the integrated GPU.
 
-Two variants, both in the domain-warped "ink in water" family:
+Three stateless wallpaper variants (the QSB/Android family) plus two
+stateful cellular-automaton variants that run in the web preview:
 
-| Variant | Install id | Look |
+| Variant | Kind | Look |
 | --- | --- | --- |
-| `ink` | `org.local.axiom.lockwall.ink` | Gold and pale-blue ink on deep green |
-| `ink-melancholy` | `org.local.axiom.lockwall.ink-melancholy` | Dark rose and smoky violet ink on near-black plum |
+| `ink` | QSB / Android | Gold and pale-blue ink on deep green |
+| `ink-melancholy` | QSB / Android | Dark rose and smoky violet ink on near-black plum |
+| `caustics` | QSB / Android | Dark water caustics — glowing cell rims and hot stars on black |
+| `life` | web preview (feedback) | Game-of-Life soup: ivory filaments that fade and merge |
+| `mnca` | web preview (feedback) | Multiple-neighborhood continuous CA: wine-and-steel bacterial colonies on black |
+
+`life` and `mnca` are **stateful** (ping-pong framebuffers) and therefore
+only run in the web preview — the QSB/Plasma path must stay stateless
+(see [Feedback variants](#feedback-variants) below).
 
 ## Preview
+
+All GIFs are 480×270, 84 frames (the QSB variants step 0.3s of animation
+time per frame; the feedback variants run one generation per frame).
 
 ![ink-melancholy](previews/gifs/ink-melancholy.gif)
 `ink-melancholy` — counter-rotating eddies, drifting "weather", randomized
@@ -19,13 +30,28 @@ droplets with random travel orientation
 ![ink](previews/gifs/ink.gif)
 `ink`
 
+![caustics](previews/gifs/caustics.gif)
+`caustics` — dark water caustics: a soft-energy Voronoi mesh with glowing
+rims tapering to hot vertex stars
+
+![mnca](previews/gifs/mnca.gif)
+`mnca` — continuous multi-neighborhood cellular automaton; wine-and-steel
+bacterial colonies on black (web preview only)
+
+![life](previews/gifs/life.gif)
+`life` — Conway's Game of Life soup with fade + ambient rain
+(web preview only)
+
 Still frames: [ink](previews/ink.png) ·
 [ink-melancholy](previews/ink-melancholy.png) ·
 [contact sheet](previews/contact-sheet.png)
 
 ## How it works
 
-Each variant is one `ShaderEffect` with an 80-byte standard Plasma UBO
+### Stateless QSB variants
+
+Each of the three QSB/Android variants is one `ShaderEffect` with an
+80-byte standard Plasma UBO
 (`qt_Matrix`, `qt_Opacity`, `time`, `resolution`). The fragment stage is
 texture-free: hash value noise (4 hashes per sample), two domain warps, two
 independent color fields, and a few micro-detail terms (`fwidth`-antialiased
@@ -44,6 +70,31 @@ state, no loops:
 
 Animation is frame-synced: a `FrameAnimation` (no FPS cap) feeds
 `ubuf.time = frameClock.elapsedTime * animationRate`.
+
+### Feedback variants
+
+`life` and `mnca` are cellular automata: each `/frame` request advances
+one (or `&gens=N`, up to 200) generation(s) of a ping-pong FBO pair at a
+fixed 320×180 grid, then composites the result to the requested
+resolution. The state lives server-side, so the page on your phone is just
+requesting successive frames — the same way the stateless variants work.
+
+* **`life`** — Conway's Game of Life over an RGBA8 soup, with a per-frame
+  fade (`u_decay`) and a thin ambient rain (`u_rain`) that keeps the field
+  from dying. Ivory filaments on near-black, matching the ink-melancholy
+  palette.
+* **`mnca`** — a continuous-state Lenia-family automaton with **three
+  circular neighborhoods** (a 12-tap disk r=2 and 16/20-tap rings r=3 and
+  r=4), each through its own 4-parameter rule curve
+  `(a dead-zone, b peak, c zero-crossing, d gain)` with per-neighborhood
+  weights, plus an ambient reseed so fresh colonies nucleate in dead
+  space. The composite maps the float state to the melancholy palette:
+  dark wine/mauve colony bodies, pale-rose rims, ivory cores, steel
+  long-range halos, on true black gaps.
+
+Query knobs (both variants): `&reset=1` re-seeds, `&seed=N` picks the
+deterministic seed, and any `&u_name=value[,value...]` overrides a uniform
+(e.g. `&u_decay=0.96`).
 
 **Cost note.** The ink family is the most expensive thing you can reasonably
 run on a lock screen. It renders at **67% linear resolution** and lets the
