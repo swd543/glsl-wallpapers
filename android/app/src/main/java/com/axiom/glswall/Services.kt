@@ -1,6 +1,6 @@
 package com.axiom.glswall
 
-import android.app.WallpaperService
+import android.service.wallpaper.WallpaperService
 
 /** Base wallpaper service: one GLSL variant per concrete subclass. */
 abstract class ShaderWallpaperService : WallpaperService() {

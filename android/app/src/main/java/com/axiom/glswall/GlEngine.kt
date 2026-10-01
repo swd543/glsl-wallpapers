@@ -1,13 +1,15 @@
 package com.axiom.glswall
 
-import android.app.WallpaperService
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.hardware.display.DisplayManager
 import android.opengl.EGL14
+import android.opengl.EGLContext
+import android.opengl.EGLDisplay
 import android.opengl.EGLExt
+import android.opengl.EGLSurface
 import android.opengl.GLES20
 import android.os.Build
 import android.os.Bundle
@@ -18,7 +20,9 @@ import android.os.SystemClock
 import android.util.Log
 import android.view.Display
 import android.view.SurfaceHolder
+import android.service.wallpaper.WallpaperService
 import java.nio.charset.Charset
+import java.util.concurrent.Executor
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
@@ -105,7 +109,7 @@ class GlEngine(
         )
         dm.registerDisplayListener(displayListener, main)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            pm.addThermalStatusListener(main, thermalListener)
+            pm.addThermalStatusListener(Executor { main.post(it) }, thermalListener)
         }
         powerSave = pm.isPowerSaveMode
         displayState = pm.displayState
@@ -167,13 +171,13 @@ class GlEngine(
     // ---------------------------------------------------------------------
     private inner class RenderThread(private val ctx: Context) : Thread("wall-$variant") {
 
-        private val lock = Any()
+        private val lock = java.lang.Object()
         @Volatile private var stopRequested = false
         private var generation = 0L
 
-        private var eglDisplay: Any? = null
-        private var eglContext: Any? = null
-        private var eglSurface: Any? = null
+        private var eglDisplay: EGLDisplay? = null
+        private var eglContext: EGLContext? = null
+        private var eglSurface: EGLSurface? = null
         private var config: IntArray? = null
 
         private var program = 0
