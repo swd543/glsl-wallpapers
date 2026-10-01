@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">GLSL Wallpapers</string>
+    <string name="wall_ink">Ink</string>
+    <string name="wall_ink_melancholy">Ink Melancholy</string>
+    <string name="wall_caustics">Caustics</string>
+    <string name="desc_ink">Gold and pale-blue ink marbling on dark teal water.</string>
+    <string name="desc_ink_melancholy">Wine, plum and steel ink in near-black water.</string>
+    <string name="desc_caustics">A light webbing across dark water.</string>
+    <string name="mode_live">Live — animated at 30 fps (pauses on screen off, AOD, power save)</string>
+    <string name="mode_static">Static — one frame, zero continuous cost</string>
+</resources>

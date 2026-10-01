@@ -195,6 +195,37 @@ python3 scripts/make-gifs.py          # previews/gifs/<variant>.gif
 python3 scripts/render.py shaders/ink.frag out.png 12.0 1280 720
 ```
 
+## Android
+
+The same shaders ship as Android live wallpapers under `android/`.
+Shaders are the single source of truth: `android/scripts/generate-assets.sh`
+transpiles each `shaders/*.frag` to ESSL 3.2 (`#version 310 es`, flat
+`u_time`/`u_resolution`/`u_opacity` uniforms) into the APK's assets, where
+they compile on-device at first launch. The `.qsb`/Plasma build and the
+Android asset build never diverge from the GLSL.
+
+**Power model** (the app holds no wakelocks and never requests battery-
+optimization exemption):
+
+* **OFF** — render thread idles, zero GL work, when the wallpaper is not
+  visible or the screen is off.
+* **STATIC** — exactly one frame, then idle, for Always-On Display (display
+  DOZE), power-save mode, thermal throttling, or the user's static choice.
+  Targeting Android 16, the platform no longer allows AOD animation anyway
+  (the `DRAW_WAKE_LOCK` compat change), so one good frame is the right design.
+* **ANIM** — vsync'd and capped at 30 fps (ambient motion, 30 fps reads
+  identically at half/quarter the GPU cost of 60/120 Hz).
+
+Build (needs JDK 17 + an Android SDK with `platforms;android-36`):
+
+```sh
+android/scripts/generate-assets.sh
+(cd android && gradle :app:assembleDebug)
+```
+
+GitHub Actions builds the debug APK on every relevant push (see
+`.github/workflows/android.yml`).
+
 ## Notes
 
 * All preview tooling (web server, GIFs, tests) uses the iGPU with a
