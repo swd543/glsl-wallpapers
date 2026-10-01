@@ -47,7 +47,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 class GlEngine(
     private val service: WallpaperService,
     private val variant: String,
-) : WallpaperService.Engine() {
+) : WallpaperService.Engine(service) {
 
     enum class Target { OFF, STATIC, ANIM }
 
