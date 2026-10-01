@@ -256,9 +256,16 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main():
+    global SHADER_DIR, WEB_DIR
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--port", type=int, default=8090)
+    ap.add_argument("--root", default=None,
+                    help="repo root to serve (default: auto-detected)")
     args = ap.parse_args()
+    if args.root:
+        root = os.path.abspath(args.root)
+        SHADER_DIR = os.path.join(root, "shaders")
+        WEB_DIR = os.path.join(root, "web")
 
     if not variant_list():
         print("no shaders found in %s" % SHADER_DIR, file=sys.stderr)

@@ -8,14 +8,45 @@ Run: python3 -m unittest discover -s tests -v
 """
 import json
 import os
+import shutil
 import socket
 import subprocess
 import sys
+import tempfile
 import time
 import unittest
 import urllib.request
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
+def _committed_shaders():
+    """The .frag files tracked in git — the set the repo actually ships.
+
+    The test must pin that contract, not the live working directory, which
+    legitimately holds untracked in-development variants.
+    """
+    try:
+        out = subprocess.check_output(
+            ["git", "-C", ROOT, "ls-files", "shaders/*.frag"],
+            stderr=subprocess.DEVNULL).decode().split()
+    except (OSError, subprocess.CalledProcessError):
+        out = []
+    if not out:
+        raise RuntimeError("no committed shaders found; not a git checkout?")
+    return out
+
+
+def _hermetic_root():
+    """A temp repo root containing only the committed shaders + the web dir,
+    so untracked dev files in the working tree cannot leak into the server."""
+    tmp = tempfile.mkdtemp(prefix="glsl-ws-test-")
+    shader_dir = os.path.join(tmp, "shaders")
+    os.makedirs(shader_dir)
+    for rel in _committed_shaders():
+        shutil.copy2(os.path.join(ROOT, rel), os.path.join(tmp, rel))
+    shutil.copytree(os.path.join(ROOT, "web"), os.path.join(tmp, "web"))
+    return tmp
 
 
 def _free_port():
@@ -29,10 +60,11 @@ def _free_port():
 class TestWebServer(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
+        cls.root = _hermetic_root()
         cls.port = _free_port()
         cls.proc = subprocess.Popen(
             [sys.executable, os.path.join(ROOT, "scripts", "webserver.py"),
-             "--port", str(cls.port)],
+             "--port", str(cls.port), "--root", cls.root],
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         deadline = time.time() + 15
         while time.time() < deadline:
@@ -53,6 +85,7 @@ class TestWebServer(unittest.TestCase):
             cls.proc.wait(timeout=5)
         except subprocess.TimeoutExpired:
             cls.proc.kill()
+        shutil.rmtree(cls.root, ignore_errors=True)
 
     def get(self, path):
         with urllib.request.urlopen(

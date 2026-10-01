@@ -80,7 +80,9 @@ build/org.local.axiom.lockwall.ink/
     metadata.json
 ```
 
-Re-run this after any shader edit. Never hand-edit `.qsb` files.
+Re-run this after any shader edit. `.qsb` files are build artifacts and
+are not tracked in git — a fresh clone must run `scripts/build-packages.sh`
+before installing. Never hand-edit `.qsb` files.
 
 ## Installing on a KDE system
 
