@@ -6,6 +6,7 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.hardware.display.DisplayManager
 import android.opengl.EGL14
+import android.opengl.EGLConfig
 import android.opengl.EGLContext
 import android.opengl.EGLDisplay
 import android.opengl.EGLExt
@@ -75,6 +76,11 @@ abstract class ShaderWallpaperService : WallpaperService() {
         private var thread: RenderThread? = null
         private val visible = AtomicBoolean(false)
 
+        // Surface size is not queryable from Surface/SurfaceHolder in the
+        // public API; surfaceChanged is the authoritative source.
+        @Volatile private var surfaceW = 0
+        @Volatile private var surfaceH = 0
+
         @Volatile private var displayState = Display.STATE_ON
         @Volatile private var powerSave = false
         @Volatile private var thermalHot = false
@@ -111,8 +117,15 @@ abstract class ShaderWallpaperService : WallpaperService() {
 
         private val surfaceCallback = object : SurfaceHolder.Callback2 {
             override fun surfaceCreated(h: SurfaceHolder) = Unit
-            override fun surfaceChanged(h: SurfaceHolder, format: Int, w: Int, h2: Int) = Unit
-            override fun surfaceDestroyed(h: SurfaceHolder) = Unit
+            override fun surfaceChanged(h: SurfaceHolder, format: Int, w: Int, h2: Int) {
+                surfaceW = w
+                surfaceH = h2
+                thread?.requestFrame() // (re)draw at the new size
+            }
+            override fun surfaceDestroyed(h: SurfaceHolder) {
+                surfaceW = 0
+                surfaceH = 0
+            }
 
             // The system asks for a fresh frame (e.g. after it has frozen the
             // wallpaper onto a screenshot surface). Redraw one and idle.
@@ -186,7 +199,7 @@ abstract class ShaderWallpaperService : WallpaperService() {
             private var eglDisplay: EGLDisplay? = null
             private var eglContext: EGLContext? = null
             private var eglSurface: EGLSurface? = null
-            private var config: IntArray? = null
+            private var config: EGLConfig? = null
 
             private var program = 0
             private var uTime = 0
@@ -295,9 +308,9 @@ abstract class ShaderWallpaperService : WallpaperService() {
                 val s = eglSurface ?: return
                 val c = eglContext ?: return
                 if (!EGL14.eglMakeCurrent(d, s, s, c)) return
-                val h = holder ?: return
-                val w = h.surfaceWidth.coerceAtLeast(1)
-                val hgt = h.surfaceHeight.coerceAtLeast(1)
+                val w = surfaceW
+                val hgt = surfaceH
+                if (w <= 0 || hgt <= 0) return // waiting on surfaceChanged
                 GLES20.glViewport(0, 0, w, hgt)
                 GLES20.glUseProgram(program)
                 val t = (SystemClock.elapsedRealtimeNanos() - timeOriginNs) / 1e9 *
@@ -317,7 +330,7 @@ abstract class ShaderWallpaperService : WallpaperService() {
                 eglDisplay = d
                 val major = IntArray(1)
                 val minor = IntArray(1)
-                if (!EGL14.eglInitialize(d, major, minor)) return fail("eglInitialize")
+                if (!EGL14.eglInitialize(d, major, 0, minor, 0)) return fail("eglInitialize")
                 if (!EGL14.eglBindAPI(EGL14.EGL_OPENGL_ES_API)) return fail("eglBindAPI")
                 val attribs = intArrayOf(
                     EGL14.EGL_SURFACE_TYPE, EGL14.EGL_WINDOW_BIT,
@@ -328,14 +341,17 @@ abstract class ShaderWallpaperService : WallpaperService() {
                     EGL14.EGL_ALPHA_SIZE, 8,
                     EGL14.EGL_NONE,
                 )
-                val configs = arrayOf(IntArray(1))
+                val configs = arrayOfNulls<EGLConfig>(1)
                 val num = IntArray(1)
-                if (!EGL14.eglChooseConfig(d, attribs, configs, 1, num) || num[0] < 1) {
+                if (!EGL14.eglChooseConfig(d, attribs, 0, configs, 0, 1, num, 0)
+                    || num[0] < 1
+                ) {
                     return fail("eglChooseConfig")
                 }
                 config = configs[0]
                 val c = EGL14.eglCreateContext(
-                    d, configs[0], EGL14.EGL_NO_CONTEXT,
+                    d, config ?: return fail("eglChooseConfig"),
+                    EGL14.EGL_NO_CONTEXT,
                     intArrayOf(EGL14.EGL_CONTEXT_CLIENT_VERSION, 3), 0,
                 )
                 if (c == EGL14.EGL_NO_CONTEXT) return fail("eglCreateContext")
@@ -347,7 +363,7 @@ abstract class ShaderWallpaperService : WallpaperService() {
             private fun createWindowSurface(wpSurface: android.view.Surface): Boolean {
                 val d = eglDisplay ?: return false
                 val cfg = config ?: return false
-                val s = EGL14.eglCreateWindowSurface(d, cfg, wpSurface, intArrayOf())
+                val s = EGL14.eglCreateWindowSurface(d, cfg, wpSurface, intArrayOf(), 0)
                 if (s == EGL14.EGL_NO_SURFACE) return fail("eglCreateWindowSurface")
                 eglSurface = s
                 return true

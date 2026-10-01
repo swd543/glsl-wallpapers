@@ -223,19 +223,23 @@ render thread polls it at ~1 Hz. (No `WallpaperManager` command channel:
 its `ComponentName`-targeted `sendWallpaperCommand` overload no longer
 exists on recent platform surfaces.)
 
-**Why the app targets API 35, not 36.** Verified against the official
-`platform-36_r02.zip` stubs: the API-36 platform jar breaks the classic
-OpenGL interop surface — `EGL14.eglInitialize/eglChooseConfig/...` now take
-array+offset pairs, `eglCreateWindowSurface` takes `java.lang.Object`,
-`SurfaceHolder` lost `getSurfaceWidth()/getSurfaceHeight()`, and
-`WallpaperManager.sendWallpaperCommand` lost its `ComponentName` overload.
-Code compiled against the 36 signatures would crash on every sub-16
-device, so the MVP pins `compileSdk`/`targetSdk = 35` and uses only the
-classic API, which is stable from API 17 through 35. Revisiting a 36 target
-means porting the engine to the new signatures plus runtime API-level
-branching (reflection or dual code paths).
+**Targeting API 36 (Android 16).** API notes verified against the official
+platform stubs that shaped the engine:
 
-Build (needs JDK 17 + an Android SDK with `platforms;android-35`):
+* `EGL14`'s public Java API is array+offset style —
+  `eglInitialize(dpy, major, 0, minor, 0)` — there is no three-argument
+  form, and `eglCreateWindowSurface` takes the window as `java.lang.Object`.
+* Surface size is not queryable from `Surface`/`SurfaceHolder` in the
+  public API; it arrives via `SurfaceHolder.Callback.surfaceChanged`.
+* `WallpaperManager.sendWallpaperCommand` only targets a window's own
+  wallpaper via an `IBinder` token, so mode changes go through the shared
+  preference instead.
+* On Android 16 the framework no longer holds the per-frame
+  `DRAW_WAKE_LOCK` for wallpapers during display DOZE (compat change
+  `DISABLE_DRAW_WAKE_LOCK_WALLPAPER`) — another reason the AOD path
+  renders one frame and idles.
+
+Build (needs JDK 17 + an Android SDK with `platforms;android-36`):
 
 ```sh
 android/scripts/generate-assets.sh

@@ -5,22 +5,21 @@ plugins {
 
 android {
     namespace = "com.axiom.glswall"
-    // API 35 on purpose. The API-36 (Android 16) platform jar breaks the
-    // classic EGL14 API: eglInitialize/eglChooseConfig/... now take
-    // array+offset pairs and eglCreateWindowSurface takes java.lang.Object,
-    // SurfaceHolder lost getSurfaceWidth/getSurfaceHeight, and
-    // WallpaperManager.sendWallpaperCommand lost its ComponentName-targeted
-    // overload (verified against platform-36_r02.zip stubs + AOSP main).
-    // Code compiled against those signatures would NoSuchMethodError on
-    // every sub-16 device, so the MVP targets 35 and stays classic-API
-    // everywhere; the power model below makes the 16+ AOD wake-lock change
-    // (DISABLE_DRAW_WAKE_LOCK_WALLPAPER) moot either way.
-    compileSdk = 35
+    // Targeting API 36 (Android 16). The engine uses only long-stable API
+    // surface (EGL14/GLES20, DisplayManager, PowerManager,
+    // WallpaperService.Engine), verified against the platform-36 stubs.
+    // Two API notes that bite if you guess:
+    //  * EGL14's public Java API is array+offset style:
+    //    eglInitialize(dpy, major, 0, minor, 0) etc. — there is no
+    //    three-argument form.
+    //  * Surface size is not queryable from Surface/SurfaceHolder in the
+    //    public API; it comes from Callback.surfaceChanged.
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.axiom.glswall"
         minSdk = 26        // EGL14 + WallpaperService + RECEIVER_NOT_EXPORTED
-        targetSdk = 35
+        targetSdk = 36
         versionCode = 1
         versionName = "0.1.0"
     }
