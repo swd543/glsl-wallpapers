@@ -2,4 +2,4 @@
 <wallpaper xmlns:android="http://schemas.android.com/apk/res/android"
     android:description="@string/desc_caustics"
     android:thumbnail="@drawable/thumb_caustics"
-    android:settingsActivity=".CausticsSettingsActivity" />
+    android:settingsActivity="com.axiom.glswall.CausticsSettingsActivity" />

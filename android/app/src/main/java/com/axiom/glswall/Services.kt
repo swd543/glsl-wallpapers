@@ -35,6 +35,11 @@ import java.util.concurrent.atomic.AtomicBoolean
  * "too many arguments") or call it without a receiver (that produces
  * "can only be called with a receiver of the containing class").
  */
+
+/** Render power target. Top level on purpose: Kotlin enums cannot live
+ *  inside inner classes. */
+enum class Target { OFF, STATIC, ANIM }
+
 abstract class ShaderWallpaperService : WallpaperService() {
 
     abstract val variant: String
@@ -63,8 +68,6 @@ abstract class ShaderWallpaperService : WallpaperService() {
      */
     inner class GlEngine(val variant: String) : WallpaperService.Engine() {
 
-        enum class Target { OFF, STATIC, ANIM }
-
         private val service: WallpaperService = this@ShaderWallpaperService
         private var holder: SurfaceHolder? = null
         private var thread: RenderThread? = null
@@ -89,14 +92,19 @@ abstract class ShaderWallpaperService : WallpaperService() {
             override fun onDisplayAdded(displayId: Int) = Unit
             override fun onDisplayRemoved(displayId: Int) = Unit
             override fun onDisplayChanged(displayId: Int) {
-                displayState = pm.displayState
+                refreshDisplayState()
             }
         }
 
-        private val thermalListener = object : PowerManager.ThermalStatusListener {
+        private val thermalListener = object : PowerManager.OnThermalStatusChangedListener {
             override fun onThermalStatusChanged(status: Int) {
-                thermalHot = status >= PowerManager.THERMAL_STATUS_THROTTLING
+                thermalHot = status >= PowerManager.THERMAL_STATUS_SEVERE
             }
+        }
+
+        private fun refreshDisplayState() {
+            displayState = dm.getDisplay(Display.DEFAULT_DISPLAY)?.state
+                ?: Display.STATE_ON
         }
 
         private val surfaceCallback = object : SurfaceHolder.Callback2 {
@@ -127,7 +135,7 @@ abstract class ShaderWallpaperService : WallpaperService() {
                 pm.addThermalStatusListener(Executor { main.post(it) }, thermalListener)
             }
             powerSave = pm.isPowerSaveMode
-            displayState = pm.displayState
+            refreshDisplayState()
             userMode = WallSettings.mode(service, variant)
 
             thread = RenderThread(service).also { it.start() }
@@ -292,7 +300,7 @@ abstract class ShaderWallpaperService : WallpaperService() {
                 GLES20.glUseProgram(program)
                 val t = (SystemClock.elapsedRealtimeNanos() - timeOriginNs) / 1e9 *
                     WallRegistry.ANIMATION_RATE
-                GLES20.glUniform1f(uTime, t)
+                GLES20.glUniform1f(uTime, t.toFloat())
                 GLES20.glUniform2f(uRes, w.toFloat(), hgt.toFloat())
                 GLES20.glUniform1f(uOp, 1f)
                 GLES20.glDrawArrays(GLES20.GL_TRIANGLES, 0, 3)

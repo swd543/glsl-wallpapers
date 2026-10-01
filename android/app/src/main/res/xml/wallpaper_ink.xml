@@ -2,4 +2,4 @@
 <wallpaper xmlns:android="http://schemas.android.com/apk/res/android"
     android:description="@string/desc_ink"
     android:thumbnail="@drawable/thumb_ink"
-    android:settingsActivity=".InkSettingsActivity" />
+    android:settingsActivity="com.axiom.glswall.InkSettingsActivity" />

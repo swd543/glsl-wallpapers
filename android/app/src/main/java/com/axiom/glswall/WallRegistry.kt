@@ -46,7 +46,7 @@ object WallRegistry {
     fun sendMode(ctx: Context, id: String, mode: String) {
         val wm = ctx.getSystemService(Context.WALLPAPER_SERVICE) as WallpaperManager
         wm.sendWallpaperCommand(
-            ComponentName(ctx, byId(id).service.java),
+            ComponentName(ctx, byId(id).service),
             CMD_SET_MODE, 0, 0, 0,
             Bundle().apply { putString(EXTRA_MODE, mode) },
             false,

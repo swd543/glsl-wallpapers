@@ -2,4 +2,4 @@
 <wallpaper xmlns:android="http://schemas.android.com/apk/res/android"
     android:description="@string/desc_ink_melancholy"
     android:thumbnail="@drawable/thumb_ink_melancholy"
-    android:settingsActivity=".InkMelancholySettingsActivity" />
+    android:settingsActivity="com.axiom.glswall.InkMelancholySettingsActivity" />
