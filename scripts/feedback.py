@@ -412,9 +412,4 @@ class FeedbackState:
         buf = (ctypes.c_ubyte * (w * h * 4))()
         f("glBindFramebuffer")(GL["READ_FRAMEBUFFER"], ctx._fbo)
         f("glReadPixels")(0, 0, w, h, GL["RGBA"], GL["UNSIGNED_BYTE"], buf)
-        rows = w * 4
-        out = bytearray(w * h * 4)
-        for r in range(h):
-            out[r * rows:(r + 1) * rows] = buf[(h - 1 - r) * rows:(h - r)
-                                               * rows]
-        return bytes(out)
+        return render.flip_top_first(buf, w, h)

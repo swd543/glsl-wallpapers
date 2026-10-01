@@ -18,6 +18,28 @@ import re
 import sys
 import time
 
+try:
+    import numpy as _np
+except ImportError:  # pragma: no cover — fallback is pure Python
+    _np = None
+
+
+def flip_top_first(buf, w, h):
+    """Flip a bottom-first RGBA readback buffer (glReadPixels) to top-first.
+
+    Row-flipping is pure bookkeeping, but the per-row Python loop costs
+    ~40 ms at 1280×720 — dominant over the ~3 ms of actual GL work — so
+    use numpy when available.
+    """
+    if _np is not None:
+        return (_np.frombuffer(buf, _np.uint8)
+                .reshape(h, w, 4)[::-1].copy().tobytes())
+    out = bytearray(w * h * 4)
+    rows = w * 4
+    for r in range(h):
+        out[r * rows:(r + 1) * rows] = buf[(h - 1 - r) * rows:(h - r) * rows]
+    return bytes(out)
+
 # Force Mesa-only EGL (AMD iGPU via RADV); never load the NVIDIA ICD.
 MESA_VENDOR_JSON = "/usr/share/glvnd/egl_vendor.d/50_mesa.json"
 if os.path.exists(MESA_VENDOR_JSON):
@@ -407,13 +429,7 @@ class RenderContext:
 
         buf = (ctypes.c_ubyte * (w * h * 4))()
         self._fn("glReadPixels")(0, 0, w, h, GL_RGBA, GL_UNSIGNED_BYTE, buf)
-        # flip to top-first
-        out = bytearray(w * h * 4)
-        rowsize = w * 4
-        for r in range(h):
-            out[r * rowsize:(r + 1) * rowsize] = (
-                bytes(buf[(h - 1 - r) * rowsize:(h - r) * rowsize]))
-        return bytes(out)
+        return flip_top_first(buf, w, h)
 
     def render_png(self, frag_src: bytes, t: float, key: str) -> bytes:
         """Render one frame and return PNG-encoded bytes (top-first)."""

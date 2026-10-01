@@ -41,12 +41,27 @@ def _hermetic_root():
     """A temp repo root containing only the committed shaders + the web dir,
     so untracked dev files in the working tree cannot leak into the server."""
     tmp = tempfile.mkdtemp(prefix="glsl-ws-test-")
-    shader_dir = os.path.join(tmp, "shaders")
-    os.makedirs(shader_dir)
     for rel in _committed_shaders():
-        shutil.copy2(os.path.join(ROOT, rel), os.path.join(tmp, rel))
+        dst = os.path.join(tmp, rel)
+        os.makedirs(os.path.dirname(dst), exist_ok=True)
+        shutil.copy2(os.path.join(ROOT, rel), dst)
     shutil.copytree(os.path.join(ROOT, "web"), os.path.join(tmp, "web"))
     return tmp
+
+
+def _variant_names(shader_paths):
+    """Server variant names for committed shader files: plain .frag stems
+    plus feedback pairs (<name>-ca.frag / <name>-comp.frag → <name>)."""
+    names = []
+    for p in shader_paths:
+        base = os.path.basename(p)
+        if base.endswith("-comp.frag"):
+            continue
+        if base.endswith("-ca.frag"):
+            names.append(base[:-len("-ca.frag")])
+        else:
+            names.append(os.path.splitext(base)[0])
+    return names
 
 
 def _free_port():
@@ -104,8 +119,8 @@ class TestWebServer(unittest.TestCase):
         status, body = self.get("/stats")
         self.assertEqual(status, 200)
         stats = json.loads(body)
-        expected = sorted(os.path.splitext(os.path.basename(p))[0]
-                          for p in _committed_shaders())
+        expected = sorted(
+            _variant_names(_committed_shaders()))
         self.assertEqual(sorted(stats["variants"]), expected)
         self.assertEqual(stats["rate"], 2.0)
         self.assertIn(stats["default_variant"], stats["variants"])

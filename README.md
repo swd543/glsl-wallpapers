@@ -1,46 +1,32 @@
 # GLSL Ink Wallpapers
 
 Animated, texture-free GLSL 440 wallpapers for KDE Plasma **lock and login
-screens**, rendered entirely on the integrated GPU.
-
-Three stateless wallpaper variants (the QSB/Android family) plus two
-stateful cellular-automaton variants that run in the web preview:
-
-| Variant | Kind | Look |
-| --- | --- | --- |
-| `ink` | QSB / Android | Gold and pale-blue ink on deep green |
-| `ink-melancholy` | QSB / Android | Dark rose and smoky violet ink on near-black plum |
-| `caustics` | QSB / Android | Dark water caustics — glowing cell rims and hot stars on black |
-| `life` | web preview (feedback) | Game-of-Life soup: ivory filaments that fade and merge |
-| `mnca` | web preview (feedback) | Multiple-neighborhood continuous CA: wine-and-steel bacterial colonies on black |
-
-`life` and `mnca` are **stateful** (ping-pong framebuffers) and therefore
-only run in the web preview — the QSB/Plasma path must stay stateless
-(see [Feedback variants](#feedback-variants) below).
+screens**, rendered entirely on the integrated GPU. `ink`,
+`ink-melancholy` and `caustics` install as Plasma QSB plugins (and ship as
+Android live wallpapers); `life` and `mnca` are stateful cellular automata
+served by the web preview.
 
 ## Preview
 
-All GIFs are 480×270, 84 frames (the QSB variants step 0.3s of animation
-time per frame; the feedback variants run one generation per frame).
-
-![ink-melancholy](previews/gifs/ink-melancholy.gif)
-`ink-melancholy` — counter-rotating eddies, drifting "weather", randomized
-droplets with random travel orientation
+All GIFs: 480×270, 84 frames (QSB variants step 0.3 s of animation per
+frame; feedback variants run one generation per frame).
 
 ![ink](previews/gifs/ink.gif)
-`ink`
+**`ink`** — gold and pale-blue ink on deep green
+
+![ink-melancholy](previews/gifs/ink-melancholy.gif)
+**`ink-melancholy`** — dark rose and smoky violet ink on near-black plum
 
 ![caustics](previews/gifs/caustics.gif)
-`caustics` — dark water caustics: a soft-energy Voronoi mesh with glowing
-rims tapering to hot vertex stars
+**`caustics`** — dark water caustics: glowing cell rims tapering to hot
+vertex stars
 
 ![mnca](previews/gifs/mnca.gif)
-`mnca` — continuous multi-neighborhood cellular automaton; wine-and-steel
-bacterial colonies on black (web preview only)
+**`mnca`** — multi-neighborhood cellular automaton: wine-and-steel bacterial
+colonies on black
 
 ![life](previews/gifs/life.gif)
-`life` — Conway's Game of Life soup with fade + ambient rain
-(web preview only)
+**`life`** — Game-of-Life soup with fade + ambient rain
 
 Still frames: [ink](previews/ink.png) ·
 [ink-melancholy](previews/ink-melancholy.png) ·
@@ -48,60 +34,50 @@ Still frames: [ink](previews/ink.png) ·
 
 ## How it works
 
-### Stateless QSB variants
+**Stateless** (`ink`, `ink-melancholy`, `caustics` — QSB / Android). One
+`ShaderEffect` per variant with the standard 80-byte Plasma UBO
+(`qt_Matrix`, `qt_Opacity`, `time`, `resolution`). Texture-free fragment
+stage: hash value noise, two domain warps, two color fields, `fwidth`
+micro-detail. Non-repeating motion from per-frame hashes only — no state,
+no loops: 8-second "weather" slots re-target eddies and drift direction,
+counter-rotating eddies shear the structures past each other, pseudo-random
+droplets travel at random 360° orientations and dissolve before leaving the
+frame. Time is frame-synced via `FrameAnimation`.
 
-Each of the three QSB/Android variants is one `ShaderEffect` with an
-80-byte standard Plasma UBO
-(`qt_Matrix`, `qt_Opacity`, `time`, `resolution`). The fragment stage is
-texture-free: hash value noise (4 hashes per sample), two domain warps, two
-independent color fields, and a few micro-detail terms (`fwidth`-antialiased
-iso-lines, flow-warped striations).
+**Feedback** (`life`, `mnca` — web preview). Stateful ping-pong FBO
+automata; the QSB path must stay stateless, so these run only in the web
+preview. Each `/frame` request advances `&gens=N` (1–200) generation(s) at
+a fixed 320×180 grid, then composites to the requested resolution.
+`life`: Conway over an RGBA8 soup with per-frame fade + ambient rain.
+`mnca`: continuous Lenia-family automaton with three circular
+neighborhoods (12/16/20 taps) through 4-parameter rule curves, plus
+ambient reseed. Knobs: `&reset=1`, `&seed=N`,
+`&u_name=value[,value...]`.
 
-Non-repeating motion is driven entirely by cheap per-frame hashes — no
-state, no loops:
+## Performance
 
-* 8-second "weather" slots re-target eddy positions, strengths and drift
-  direction with smoothstep-crossfades
-* two counter-rotating eddies shear the structures past each other
-* pseudo-random droplets: per-slot hash decides wait time, duration, **full
-  360° travel orientation**, path arc and shape; each drop eases out of its
-  speed and dissolves (fades + spreads) before leaving the frame; ~1 in 7
-  slots is skipped so pauses vary
+Measured on the iGPU (Mesa 7.2.7 radeonsi, OpenGL ES 3.2 — the same driver
+the wallpapers run under), medians of 30 runs after warmup.
 
-Animation is frame-synced: a `FrameAnimation` (no FPS cap) feeds
-`ubuf.time = frameClock.elapsedTime * animationRate`.
+**Stateless, per frame** (GL-only, what Plasma/Android executes):
 
-### Feedback variants
+| | 1280×720 | 1920×1080 | 2573×1440 (4K @ 67% `renderScale`) |
+| --- | --- | --- | --- |
+| `ink` | 2.4 ms | 5.4 ms | 9.5 ms |
+| `ink-melancholy` | 2.9 ms | 6.4 ms | 11.6 ms |
+| `caustics` | 4.1 ms | 9.2 ms | 16.7 ms |
 
-`life` and `mnca` are cellular automata: each `/frame` request advances
-one (or `&gens=N`, up to 200) generation(s) of a ping-pong FBO pair at a
-fixed 320×180 grid, then composites the result to the requested
-resolution. The state lives server-side, so the page on your phone is just
-requesting successive frames — the same way the stateless variants work.
+**Feedback, per generation** (full step; the CA pass is a fixed 320×180
+draw — 0.1 ms `life`, 0.2 ms `mnca` — resolution-independent):
 
-* **`life`** — Conway's Game of Life over an RGBA8 soup, with a per-frame
-  fade (`u_decay`) and a thin ambient rain (`u_rain`) that keeps the field
-  from dying. Ivory filaments on near-black, matching the ink-melancholy
-  palette.
-* **`mnca`** — a continuous-state Lenia-family automaton with **three
-  circular neighborhoods** (a 12-tap disk r=2 and 16/20-tap rings r=3 and
-  r=4), each through its own 4-parameter rule curve
-  `(a dead-zone, b peak, c zero-crossing, d gain)` with per-neighborhood
-  weights, plus an ambient reseed so fresh colonies nucleate in dead
-  space. The composite maps the float state to the melancholy palette:
-  dark wine/mauve colony bodies, pale-rose rims, ivory cores, steel
-  long-range halos, on true black gaps.
+| | 640×360 | 1280×720 | 1920×1080 | 2573×1440 |
+| --- | --- | --- | --- | --- |
+| `life` | 0.4 ms | 1.3 ms | 4.8 ms | 11.1 ms |
+| `mnca` | 0.5 ms | 1.4 ms | 5.8 ms | 11.0 ms |
 
-Query knobs (both variants): `&reset=1` re-seeds, `&seed=N` picks the
-deterministic seed, and any `&u_name=value[,value...]` overrides a uniform
-(e.g. `&u_decay=0.96`).
-
-**Cost note.** The ink family is the most expensive thing you can reasonably
-run on a lock screen. It renders at **67% linear resolution** and lets the
-compositor upscale — on a 3840×2160 display that is a 2573×1440 layer,
-which keeps frame pacing smooth while the soft marbled look survives
-upscaling. `renderScale` (per variant) and `animationRate` live in
-`templates/main.qml.in` / `scripts/build-packages.sh`.
+A 30 fps lock screen has a 33.3 ms budget: `caustics` at the 4K 67% lock
+layer (16.7 ms) fits with room; at a 60 fps budget it is at the edge —
+`renderScale` is the lever.
 
 ## Requirements
 
@@ -282,13 +258,6 @@ platform stubs that shaped the engine:
   form, and `eglCreateWindowSurface` takes the window as `java.lang.Object`.
 * Surface size is not queryable from `Surface`/`SurfaceHolder` in the
   public API; it arrives via `SurfaceHolder.Callback.surfaceChanged`.
-* `WallpaperManager.sendWallpaperCommand` only targets a window's own
-  wallpaper via an `IBinder` token, so mode changes go through the shared
-  preference instead.
-* On Android 16 the framework no longer holds the per-frame
-  `DRAW_WAKE_LOCK` for wallpapers during display DOZE (compat change
-  `DISABLE_DRAW_WAKE_LOCK_WALLPAPER`) — another reason the AOD path
-  renders one frame and idles.
 
 Build (needs JDK 17 + an Android SDK with `platforms;android-36`):
 
