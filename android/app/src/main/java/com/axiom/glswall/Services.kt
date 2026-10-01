@@ -12,7 +12,6 @@ import android.opengl.EGLExt
 import android.opengl.EGLSurface
 import android.opengl.GLES20
 import android.os.Build
-import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.os.PowerManager
@@ -39,6 +38,8 @@ import java.util.concurrent.atomic.AtomicBoolean
 /** Render power target. Top level on purpose: Kotlin enums cannot live
  *  inside inner classes. */
 enum class Target { OFF, STATIC, ANIM }
+
+private const val TAG = "glswall"
 
 abstract class ShaderWallpaperService : WallpaperService() {
 
@@ -149,23 +150,6 @@ abstract class ShaderWallpaperService : WallpaperService() {
             // Always render at the actual surface size; nothing to do.
         }
 
-        override fun onCommand(
-            action: String?,
-            x: Int,
-            y: Int,
-            z: Int,
-            extras: Bundle?,
-            resultRequested: Boolean,
-        ): Bundle? {
-            if (action == WallRegistry.CMD_SET_MODE) {
-                val mode = extras?.getString(WallRegistry.EXTRA_MODE) ?: return null
-                userMode = mode
-                WallSettings.setMode(service, variant, mode)
-                thread?.requestFrame()
-            }
-            return null
-        }
-
         override fun onDestroy() {
             thread?.shutdown()
             thread?.join(500)
@@ -210,6 +194,7 @@ abstract class ShaderWallpaperService : WallpaperService() {
 
             private val timeOriginNs = SystemClock.elapsedRealtimeNanos()
             private var lastDrawMs = 0L
+            private var lastModePollMs = 0L
             private var lastTarget: Target? = null
             private var staticArmed = false
 
@@ -240,6 +225,22 @@ abstract class ShaderWallpaperService : WallpaperService() {
             }
 
             private fun step() {
+                // Poll the persisted user mode (live/static) about once a
+                // second. The settings activity just writes the preference;
+                // there is no cross-process command channel — the modern
+                // WallpaperManager.sendWallpaperCommand targets a window's
+                // own wallpaper via an IBinder token, not a named service.
+                val nowMs = SystemClock.elapsedRealtime()
+                if (nowMs - lastModePollMs >= 1000) {
+                    lastModePollMs = nowMs
+                    val m = WallSettings.mode(ctx, variant)
+                    if (m != userMode) {
+                        userMode = m
+                        lastTarget = null
+                        staticArmed = true
+                    }
+                }
+
                 val h = holder ?: return
                 val wpSurface = h.surface
                 if (wpSurface == null) {
@@ -429,10 +430,6 @@ abstract class ShaderWallpaperService : WallpaperService() {
             } catch (e: Exception) {
                 Log.e(TAG, "missing asset $path (run android/scripts/generate-assets.sh)")
                 null
-            }
-
-            companion object {
-                private const val TAG = "glswall"
             }
         }
     }

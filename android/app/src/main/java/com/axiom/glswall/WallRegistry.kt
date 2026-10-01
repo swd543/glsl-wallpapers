@@ -1,9 +1,6 @@
 package com.axiom.glswall
 
-import android.app.WallpaperManager
-import android.content.ComponentName
 import android.content.Context
-import android.os.Bundle
 
 /**
  * The wallpaper catalog. One WallpaperService + one settings activity per
@@ -14,8 +11,6 @@ import android.os.Bundle
  */
 object WallRegistry {
 
-    const val CMD_SET_MODE = "set-mode"
-    const val EXTRA_MODE = "mode"
     const val MODE_LIVE = "live"
     const val MODE_STATIC = "static"
 
@@ -41,15 +36,4 @@ object WallRegistry {
     )
 
     fun byId(id: String): Wall = ALL.first { it.id == id }
-
-    /** Push a live mode change into the currently-set wallpaper of this variant. */
-    fun sendMode(ctx: Context, id: String, mode: String) {
-        val wm = ctx.getSystemService(Context.WALLPAPER_SERVICE) as WallpaperManager
-        wm.sendWallpaperCommand(
-            ComponentName(ctx, byId(id).service),
-            CMD_SET_MODE, 0, 0, 0,
-            Bundle().apply { putString(EXTRA_MODE, mode) },
-            false,
-        )
-    }
 }

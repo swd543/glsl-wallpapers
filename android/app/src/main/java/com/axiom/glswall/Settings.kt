@@ -51,8 +51,8 @@ abstract class BaseSettingsActivity : Activity() {
         )
         group.setOnCheckedChangeListener { _, id ->
             val mode = if (id == stat.id) WallRegistry.MODE_STATIC else WallRegistry.MODE_LIVE
+            // The engine polls this preference ~1 Hz; no IPC needed.
             WallSettings.setMode(this, variant, mode)
-            WallRegistry.sendMode(this, variant, mode)
         }
 
         root.addView(note)
