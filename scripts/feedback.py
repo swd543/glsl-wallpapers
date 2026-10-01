@@ -55,6 +55,9 @@ VARIANTS = {
         "internal": GL["RGBA8"],
         "type": GL["UNSIGNED_BYTE"],
         "seed": "soup",
+        # Conway's rules evolve slowly per generation; time-lapse 3 per
+        # displayed frame (override with &gens=N)
+        "default_gens": 3,
         "defaults": {"u_decay": 0.93, "u_rain": 0.00006},
         "comp_samplers": [("u_lin", "linear"), ("u_near", "nearest")],
     },

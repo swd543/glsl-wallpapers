@@ -293,10 +293,13 @@ class Handler(BaseHTTPRequestHandler):
                     self._send(400, b"res out of range", "text/plain")
                     return
                 if variant in feedback.discover(SHADER_DIR):
-                    try:
-                        gens = max(1, min(200, int(q.get("gens", ["1"])[0])))
-                    except ValueError:
-                        gens = 1
+                    if "gens" in q:
+                        try:
+                            gens = max(1, min(200, int(q["gens"][0])))
+                        except ValueError:
+                            gens = 1
+                    else:
+                        gens = feedback.VARIANTS[variant].get("default_gens", 1)
                     uniforms = {}
                     for k, v in q.items():
                         if k in ("variant", "res", "t", "gens", "reset"):
