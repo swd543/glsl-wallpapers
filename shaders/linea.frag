@@ -16,9 +16,9 @@ void main()
     vec2 p = uv * 2.0 - 1.0;
     p.x *= ubuf.resolution.x / max(ubuf.resolution.y, 1.0);
 
-    // Animated at 1-2 fps by design: the fan carries a slow ripple that
-    // crosses it in ~30 s and a ~45 s global breath; the circles drift on
-    // ~2-4 minute Lissajous orbits. Each 1 s frame is a deliberate step.
+    // Real-time pacing for the 10 fps repaint: the fan carries a ripple that
+    // crosses it in ~20 s and a ~40 s global breath; the circles drift on
+    // ~3-4 minute Lissajous orbits. At 10 fps each frame is a small step.
     float t = ubuf.time;
 
     vec3 col = vec3(0.0);   // solid black ground
@@ -31,8 +31,8 @@ void main()
     vec2 d = p - c;
     float r = length(vec2(max(-d.x, 0.0), max(d.y * 1.45, 0.0)));
     float v = r * 8.33
-            + 0.120 * sin(r * 4.0 - t * 0.42)   // ripple crossing the fan in ~15 s
-            + 0.080 * sin(t * 0.21);            // global breath, ~30 s
+            + 0.100 * sin(r * 4.0 - t * 0.31)   // ripple crossing the fan in ~20 s
+            + 0.080 * sin(t * 0.16);            // global breath, ~40 s
     float arc = 1.0 - smoothstep(0.130, 0.180, abs(fract(v) - 0.5));
     float mask = smoothstep(0.75, 0.85, r) * (1.0 - smoothstep(1.70, 1.80, r));
     float shade = 0.82 + 0.18 * fract(floor(v) * 1.713 + 0.37);  // per-arc tone

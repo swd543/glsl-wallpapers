@@ -22,24 +22,24 @@ void main()
     vec2 p = uv * 2.0 - 1.0;
     p.x *= ubuf.resolution.x / max(ubuf.resolution.y, 1.0);
 
-    // Real-time pacing for 1-2 fps repaints: the contour lines crawl a few
-    // tens of pixels per frame - deliberately choppy, readable per frame.
+    // Real-time pacing for the 2 fps repaint: the contour lines crawl a few
+    // pixels per frame - slow, and smooth at every frame.
     float t = ubuf.time;
-    vec2 drift = vec2(cos(t * 0.37), sin(t * 0.31)) * 0.16;
+    vec2 drift = vec2(cos(t * 0.16), sin(t * 0.13)) * 0.16;
     vec2 q = p + drift;
 
     // Three interfering trig fields -> organic terrain from pure sines,
     // zero noise, zero hashes.
-    float broad = sin(q.x * 3.1 + sin(q.y * 2.3 + t * 0.5) * 0.9 + t * 0.30);
-    float cross = sin((q.x - q.y) * 4.6 - t * 0.48);
-    float rings = sin(length(q - vec2(0.58, -0.24)) * 11.0 - t * 0.75);
-    float rings2 = sin(length(q - vec2(-0.58, 0.34)) * 7.5 - t * 0.50);
+    float broad = sin(q.x * 3.1 + sin(q.y * 2.3 + t * 0.22) * 0.9 + t * 0.13);
+    float cross = sin((q.x - q.y) * 4.6 - t * 0.19);
+    float rings = sin(length(q - vec2(0.58, -0.24)) * 11.0 - t * 0.30);
+    float rings2 = sin(length(q - vec2(-0.58, 0.34)) * 7.5 - t * 0.20);
     float field = broad * 0.44 + cross * 0.26 + rings * 0.22 + rings2 * 0.16;
 
-    float gv = field * 2.2 + t * 0.45;
+    float gv = field * 2.2 + t * 0.18;
     float g1 = lineBand(gv, 0.028);                          // 1 outside, 0 in the groove
     float rim = clamp(lineBand(gv + 0.045, 0.028) - g1, 0.0, 1.0);   // lit ridge hugging one side
-    float fh = (q.x * 8.5 + q.y * 5.0 + field * 1.4) - t * 0.50;
+    float fh = (q.x * 8.5 + q.y * 5.0 + field * 1.4) - t * 0.19;
     float g2 = lineBand(fh, 0.020);
     float rim2 = clamp(lineBand(fh + 0.030, 0.020) - g2, 0.0, 1.0);
 
@@ -50,7 +50,7 @@ void main()
                 * (0.80 + 0.35 * sin(t * 0.21));
     float halo2 = smoothstep(0.95, 0.18, abs(length(q - vec2(-0.58, 0.34)) - 0.45))
                 * (0.80 + 0.35 * sin(t * 0.14 + 1.0));
-    float band = smoothstep(0.62, 0.0, abs(p.y + p.x * 0.28 + 0.18 + sin(t * 0.4 + p.x * 1.4) * 0.08));
+    float band = smoothstep(0.62, 0.0, abs(p.y + p.x * 0.28 + 0.18 + sin(t * 0.12 + p.x * 1.4) * 0.08));
     float vignette = 1.0 - 0.50 * smoothstep(0.9, 2.3, length(p));   // gentle: corners ~0.55
 
     // Melancholy dusk palette: indigo ground; plum / steel / wine terrain

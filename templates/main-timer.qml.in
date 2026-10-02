@@ -4,15 +4,16 @@ import org.kde.plasma.plasmoid
 WallpaperItem {
     id: root
 
-    // Intentionally slow scene: repaint at 2 fps instead of the compositor's
-    // render loop. Each tick advances the shader time by 0.5 s of real time,
-    // so the animation is sampled twice a second and moves a deliberate,
-    // choppy step per frame. The QSB shader is stateless, so sampling at 2
-    // fps is lossless for the look - and costs ~30x less GPU duty.
+    // Intentionally slow scene: repaint at a low fixed rate instead of the
+    // compositor's render loop. Each tick advances the shader time by
+    // @TICK_SECONDS@ s of real time (interval @TICK_MS@ ms), so the animation
+    // is sampled a few times per second and moves a deliberate step per
+    // frame. The QSB shader is stateless, so low-rate sampling is lossless
+    // for the look - and costs tens of times less GPU duty.
     property int tick: 0
 
     Timer {
-        interval: 500
+        interval: @TICK_MS@
         running: root.visible
         repeat: true
         onTriggered: tick += 1
@@ -25,7 +26,7 @@ WallpaperItem {
         blending: false
 
         property real renderScale: @RENDER_SCALE@
-        property real time: tick * 0.5
+        property real time: tick * @TICK_SECONDS@
         property vector2d resolution: Qt.vector2d(
             Math.max(width * renderScale, 1),
             Math.max(height * renderScale, 1))

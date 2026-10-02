@@ -119,27 +119,32 @@ class TestQmlTemplate(unittest.TestCase):
 
 
 class TestTimerQmlTemplate(unittest.TestCase):
-    """The very slow variants repaint on a Timer, not the frame loop."""
+    """The very slow variants repaint on a fixed-rate Timer, not the frame
+    loop."""
 
     def test_timer_clock(self):
         qml = open(TIMER_TEMPLATE).read()
         self.assertRegex(qml, r"Timer\s*\{")
-        self.assertRegex(qml, r"interval:\s*500")
-        self.assertRegex(qml, r"time:\s*tick\s*\*\s*0\.5")
+        self.assertRegex(qml, r"interval:\s*@TICK_MS@")
+        self.assertRegex(qml, r"time:\s*tick\s*\*\s*@TICK_SECONDS@")
         self.assertNotIn("FrameAnimation", qml)
 
     def test_placeholders_are_known(self):
         qml = open(TIMER_TEMPLATE).read()
         unknown = re.findall(r"@[A-Z_]+@", qml)
-        self.assertEqual(sorted(unknown),
-                         sorted(["@SHADER@", "@RENDER_SCALE@"]))
+        self.assertEqual(sorted(set(unknown)),
+                         sorted(["@SHADER@", "@RENDER_SCALE@",
+                                  "@TICK_MS@", "@TICK_SECONDS@"]))
 
-    def test_build_script_selects_template(self):
+    def test_build_script_selects_template_and_pacing(self):
         script = open(os.path.join(ROOT, "scripts", "build-packages.sh")).read()
         self.assertIn("main-timer.qml.in", script)
         self.assertRegex(
             script,
-            r"linea\|topo-melancholy\)\s*qml_tmpl=\"main-timer\.qml\.in\"")
+            r"linea\)\s+qml_tmpl=\"main-timer\.qml\.in\";\s+tick_ms=100")
+        self.assertRegex(
+            script,
+            r"topo-melancholy\)\s+qml_tmpl=\"main-timer\.qml\.in\";\s+tick_ms=500")
 
 
 if __name__ == "__main__":

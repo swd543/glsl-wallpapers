@@ -34,11 +34,13 @@ while IFS= read -r -d '' frag; do
         ink|ink-melancholy) render_scale="0.67" ;;
         *)                   render_scale="1.0" ;;
     esac
-    # The very slow variants repaint on a 2 fps Timer (0.5 s per tick)
-    # instead of the compositor's FrameAnimation loop.
+    # The very slow variants repaint on a fixed-rate Timer instead of the
+    # compositor's FrameAnimation loop (pacing per variant: linea 10 fps,
+    # topo-melancholy 2 fps).
     case "${variant}" in
-        linea|topo-melancholy) qml_tmpl="main-timer.qml.in" ;;
-        *)                     qml_tmpl="main.qml.in" ;;
+        linea)           qml_tmpl="main-timer.qml.in"; tick_ms=100; tick_s="0.1" ;;
+        topo-melancholy) qml_tmpl="main-timer.qml.in"; tick_ms=500; tick_s="0.5" ;;
+        *)               qml_tmpl="main.qml.in";      tick_ms=500; tick_s="0.5" ;;
     esac
     dst="${build_dir}/${pkg_id}/contents/ui"
     mkdir -p "${dst}"
@@ -52,6 +54,8 @@ while IFS= read -r -d '' frag; do
         "${tmpl_dir}/metadata.json.in" > "${build_dir}/${pkg_id}/metadata.json"
     sed -e "s|@SHADER@|${variant}.frag.qsb|g" \
         -e "s|@RENDER_SCALE@|${render_scale}|g" \
+        -e "s|@TICK_MS@|${tick_ms}|g" \
+        -e "s|@TICK_SECONDS@|${tick_s}|g" \
         "${tmpl_dir}/${qml_tmpl}" > "${dst}/main.qml"
 
     echo "Built ${pkg_id}"

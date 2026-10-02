@@ -31,7 +31,7 @@ colonies on black
 
 ![linea](previews/gifs/linea.gif)
 **`linea`** — line-and-arc composition on solid black; two flat circles roam
-the left half and overlap into a lighter tint (2 fps repaint)
+the left half and overlap into a lighter tint (10 fps repaint)
 
 ![topo-melancholy](previews/gifs/topo-melancholy.gif)
 **`topo-melancholy`** — contour-line terrain in the melancholy palette; ring
@@ -55,9 +55,10 @@ counter-rotating eddies shear the structures past each other, pseudo-random
 droplets travel at random 360° orientations and dissolve before leaving the
 frame. Time is frame-synced via `FrameAnimation`. The very slow variants
 (`linea`, `topo-melancholy`) use a different QML clock: a `Timer` that
-repaints at 2 fps, each 0.5 s tick advancing the shader time by 0.5 s of real
-time — the motion is deliberately choppy (~tens of pixels per frame) and
-repainting twice a second costs ~30× less GPU duty than the frame loop.
+repaints at a low fixed rate per variant (10 fps `linea`, 2 fps
+`topo-melancholy`), each tick advancing the shader time by the real elapsed
+seconds — the motion steps per frame, and the low repaint rate costs tens of
+times less GPU duty than the frame loop.
 
 **Feedback** (`life`, `mnca` — web preview). Stateful ping-pong FBO
 automata; the QSB path must stay stateless, so these run only in the web
@@ -94,8 +95,9 @@ draw — 0.1 ms `life`, 0.2 ms `mnca` — resolution-independent):
 
 A 30 fps lock screen has a 33.3 ms budget: `caustics` at the 4K 67% lock
 layer (16.7 ms) fits with room; at a 60 fps budget it is at the edge —
-`renderScale` is the lever. `linea` and `topo-melancholy` repaint at 2 fps
-(500 ms budget) and stay under 3 ms even at the 4K lock layer.
+`renderScale` is the lever. `linea` (10 fps, 100 ms budget) and
+`topo-melancholy` (2 fps, 500 ms budget) stay under 3 ms per frame even at
+the 4K lock layer.
 
 ## Requirements
 
@@ -126,8 +128,8 @@ build/org.local.axiom.lockwall.ink/
 ```
 
 The clock in `main.qml` is `FrameAnimation` (follows the compositor's
-render loop) for the fast-motion ink family, and a 2 fps `Timer` for the
-very slow variants (`linea`, `topo-melancholy`).
+render loop) for the fast-motion ink family, and a low-rate `Timer`
+(10 fps for `linea`, 2 fps for `topo-melancholy`) for the very slow variants.
 
 Re-run this after any shader edit. `.qsb` files are build artifacts and
 are not tracked in git — a fresh clone must run `scripts/build-packages.sh`
