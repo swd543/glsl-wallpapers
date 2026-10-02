@@ -34,6 +34,12 @@ while IFS= read -r -d '' frag; do
         ink|ink-melancholy) render_scale="0.67" ;;
         *)                   render_scale="1.0" ;;
     esac
+    # The very slow variants repaint on a 2 fps Timer (0.5 s per tick)
+    # instead of the compositor's FrameAnimation loop.
+    case "${variant}" in
+        linea|topo-melancholy) qml_tmpl="main-timer.qml.in" ;;
+        *)                     qml_tmpl="main.qml.in" ;;
+    esac
     dst="${build_dir}/${pkg_id}/contents/ui"
     mkdir -p "${dst}"
 
@@ -46,10 +52,10 @@ while IFS= read -r -d '' frag; do
         "${tmpl_dir}/metadata.json.in" > "${build_dir}/${pkg_id}/metadata.json"
     sed -e "s|@SHADER@|${variant}.frag.qsb|g" \
         -e "s|@RENDER_SCALE@|${render_scale}|g" \
-        "${tmpl_dir}/main.qml.in" > "${dst}/main.qml"
+        "${tmpl_dir}/${qml_tmpl}" > "${dst}/main.qml"
 
     echo "Built ${pkg_id}"
-done < <(find "${shader_dir}" -type f -name '*.frag' -print0 | sort -z)
+done < <(find "${shader_dir}" -maxdepth 1 -type f -name '*.frag' -print0 | sort -z)
 
 if [[ "${found}" -eq 0 ]]; then
     echo "No .frag files found under ${shader_dir}" >&2

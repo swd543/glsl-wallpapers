@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
-# Compile every shaders/*.frag into shaders/*.frag.qsb using the same
-# invocation the original project used (verified byte-identical against the
-# installed .qsb files): qsb-qt6 --qt6 -o OUT IN
+# Compile every top-level shaders/*.frag into shaders/*.frag.qsb using the
+# same invocation the original project used (verified byte-identical against
+# the installed .qsb files): qsb-qt6 --qt6 -o OUT IN
+#
+# shaders/feedback/ holds the ping-pong CA pair for the web preview only -
+# it is not a Plasma QSB target and must stay out of the QSB build.
 #
 # Then re-dump the QSB (-d) as a validity check.
 set -euo pipefail
@@ -35,7 +38,7 @@ while IFS= read -r -d '' frag; do
     echo "Compiling ${frag##*/} -> ${out##*/}"
     "${qsb_bin}" --qt6 -o "${out}" "${frag}"
     "${qsb_bin}" -d "${out}" >/dev/null
-done < <(find "${shader_dir}" -type f -name '*.frag' -print0 | sort -z)
+done < <(find "${shader_dir}" -maxdepth 1 -type f -name '*.frag' -print0 | sort -z)
 
 if [[ "${count}" -eq 0 ]]; then
     echo "No .frag files found under ${shader_dir}" >&2

@@ -10,6 +10,7 @@ import unittest
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SHADER_DIR = os.path.join(ROOT, "shaders")
 TEMPLATE = os.path.join(ROOT, "templates", "main.qml.in")
+TIMER_TEMPLATE = os.path.join(ROOT, "templates", "main-timer.qml.in")
 
 sys.path.insert(0, os.path.join(ROOT, "scripts"))
 import render  # noqa: E402
@@ -115,6 +116,30 @@ class TestQmlTemplate(unittest.TestCase):
         self.assertRegex(
             open(TEMPLATE).read(),
             r"layer\.enabled:\s*renderScale\s*<\s*0\.999")
+
+
+class TestTimerQmlTemplate(unittest.TestCase):
+    """The very slow variants repaint on a Timer, not the frame loop."""
+
+    def test_timer_clock(self):
+        qml = open(TIMER_TEMPLATE).read()
+        self.assertRegex(qml, r"Timer\s*\{")
+        self.assertRegex(qml, r"interval:\s*500")
+        self.assertRegex(qml, r"time:\s*tick\s*\*\s*0\.5")
+        self.assertNotIn("FrameAnimation", qml)
+
+    def test_placeholders_are_known(self):
+        qml = open(TIMER_TEMPLATE).read()
+        unknown = re.findall(r"@[A-Z_]+@", qml)
+        self.assertEqual(sorted(unknown),
+                         sorted(["@SHADER@", "@RENDER_SCALE@"]))
+
+    def test_build_script_selects_template(self):
+        script = open(os.path.join(ROOT, "scripts", "build-packages.sh")).read()
+        self.assertIn("main-timer.qml.in", script)
+        self.assertRegex(
+            script,
+            r"linea\|topo-melancholy\)\s*qml_tmpl=\"main-timer\.qml\.in\"")
 
 
 if __name__ == "__main__":

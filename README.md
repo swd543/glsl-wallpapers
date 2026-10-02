@@ -1,10 +1,10 @@
 # GLSL Ink Wallpapers
 
-Animated, texture-free GLSL 440 wallpapers for KDE Plasma **lock and login
-screens**, rendered entirely on the integrated GPU. `ink`,
-`ink-melancholy` and `caustics` install as Plasma QSB plugins (and ship as
-Android live wallpapers); `life` and `mnca` are stateful cellular automata
-served by the web preview.
+Animated, texture-free GLSL 440 wallpapers for KDE Plasma **lock, login and
+desktop screens**, rendered entirely on the integrated GPU. `ink`,
+`ink-melancholy`, `caustics`, `linea` and `topo-melancholy` install as Plasma
+QSB plugins (and ship as Android live wallpapers); `life` and `mnca` are
+stateful cellular automata served by the web preview.
 
 ## Preview
 
@@ -29,8 +29,18 @@ colonies on black
 ![life](previews/gifs/life.gif)
 **`life`** — Game-of-Life soup with fade + ambient rain
 
+![linea](previews/gifs/linea.gif)
+**`linea`** — line-and-arc composition on solid black; two flat circles roam
+the left half and overlap into a lighter tint (2 fps repaint)
+
+![topo-melancholy](previews/gifs/topo-melancholy.gif)
+**`topo-melancholy`** — contour-line terrain in the melancholy palette; ring
+pulses expand from two foci, foci breathe on ~30-45 s cycles (2 fps repaint)
+
 Still frames: [ink](previews/ink.png) ·
 [ink-melancholy](previews/ink-melancholy.png) ·
+[linea](previews/linea.png) ·
+[topo-melancholy](previews/topo-melancholy.png) ·
 [contact sheet](previews/contact-sheet.png)
 
 ## How it works
@@ -43,7 +53,11 @@ micro-detail. Non-repeating motion from per-frame hashes only — no state,
 no loops: 8-second "weather" slots re-target eddies and drift direction,
 counter-rotating eddies shear the structures past each other, pseudo-random
 droplets travel at random 360° orientations and dissolve before leaving the
-frame. Time is frame-synced via `FrameAnimation`.
+frame. Time is frame-synced via `FrameAnimation`. The very slow variants
+(`linea`, `topo-melancholy`) use a different QML clock: a `Timer` that
+repaints at 2 fps, each 0.5 s tick advancing the shader time by 0.5 s of real
+time — the motion is deliberately choppy (~tens of pixels per frame) and
+repainting twice a second costs ~30× less GPU duty than the frame loop.
 
 **Feedback** (`life`, `mnca` — web preview). Stateful ping-pong FBO
 automata; the QSB path must stay stateless, so these run only in the web
@@ -67,6 +81,8 @@ the wallpapers run under), medians of 30 runs after warmup.
 | `ink` | 2.4 ms | 5.4 ms | 9.5 ms |
 | `ink-melancholy` | 2.9 ms | 6.4 ms | 11.6 ms |
 | `caustics` | 4.1 ms | 9.2 ms | 16.7 ms |
+| `linea` | 0.5 ms | 1.0 ms | 1.7 ms |
+| `topo-melancholy` | 0.7 ms | 1.6 ms | 2.8 ms |
 
 **Feedback, per generation** (full step; the CA pass is a fixed 320×180
 draw — 0.1 ms `life`, 0.2 ms `mnca` — resolution-independent):
@@ -78,7 +94,8 @@ draw — 0.1 ms `life`, 0.2 ms `mnca` — resolution-independent):
 
 A 30 fps lock screen has a 33.3 ms budget: `caustics` at the 4K 67% lock
 layer (16.7 ms) fits with room; at a 60 fps budget it is at the edge —
-`renderScale` is the lever.
+`renderScale` is the lever. `linea` and `topo-melancholy` repaint at 2 fps
+(500 ms budget) and stay under 3 ms even at the 4K lock layer.
 
 ## Requirements
 
@@ -102,11 +119,15 @@ installable plugin directories under `build/`:
 build/org.local.axiom.lockwall.ink/
   contents/
     ui/
-      main.qml            # ShaderEffect + FrameAnimation + renderScale
+      main.qml            # ShaderEffect + clock + renderScale
       ink.frag            # shader source (mirror, for reference)
       ink.frag.qsb        # compiled shader (what Plasma loads)
     metadata.json
 ```
+
+The clock in `main.qml` is `FrameAnimation` (follows the compositor's
+render loop) for the fast-motion ink family, and a 2 fps `Timer` for the
+very slow variants (`linea`, `topo-melancholy`).
 
 Re-run this after any shader edit. `.qsb` files are build artifacts and
 are not tracked in git — a fresh clone must run `scripts/build-packages.sh`
@@ -129,6 +150,12 @@ Per-user (lock screen and desktop only):
 mkdir -p ~/.local/share/plasma/wallpapers
 cp -r build/org.local.axiom.lockwall.ink* ~/.local/share/plasma/wallpapers/
 ```
+
+**Desktop:** the same packages work as regular desktop wallpapers — set
+`wallpaperplugin=org.local.axiom.lockwall.<variant>` for each desktop's
+`[Containments][N]` section in
+`~/.config/plasma-org.kde.plasma.desktop-appletsrc` (right-click the desktop
+offers the same change in the UI).
 
 ### 2. Lock screen
 
@@ -206,7 +233,8 @@ python3 -m unittest discover -s tests -v
 
 * `tests/test_structure.py` — no GPU: Plasma UBO layout/convention checks
   (`#version 440`, 80-byte `buf` block, no loops), the ESSL transpiler, and
-  the QML template (frame-synced clock, known placeholders).
+  the QML templates (frame-synced clock, 2 fps Timer clock, known
+  placeholders).
 * `tests/test_render.py` — GPU integration: renders every shader and checks
   frames are non-black, lock-screen-dark (no white-hot areas), animated
   over time, and within a frame-budget ceiling. Skipped when no
